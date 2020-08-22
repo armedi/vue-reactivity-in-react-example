@@ -1,21 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { reactive, toRefs, effect } from '@vue/reactivity';
+import { reactive, ref, isRef, effect, stop } from '@vue/reactivity';
 
-const withData = (data = {}) => (Component) => {
-  const reactiveData = reactive(data);
+const access = (object) => {
+  if (isRef(object)) {
+    access(object.value);
+  } else if (typeof object === 'object') {
+    for (let key of Object.keys(object)) {
+      access(object[key]);
+    }
+  }
+};
+
+const setup = (setupFn) => (Component) => {
+  const setupProps = setupFn();
 
   return (props) => {
     const [, setTick] = useState(0);
     useEffect(() => {
-      effect(() => {
-        for (let key in reactiveData) {
-          reactiveData[key]; // eslint-disable-line no-unused-expressions
-        }
+      const reactiveEffect = effect(() => {
+        access(setupProps);
         setTick((tick) => tick + 1);
       });
+
+      return () => stop(reactiveEffect);
     }, []);
 
-    return <Component {...toRefs(reactiveData)} {...props} />;
+    return <Component {...props} {...setupProps} />;
   };
 };
 
@@ -25,10 +35,10 @@ function App({ count, name }) {
       <input
         className="block w-64 rounded-md p-3 mb-4 sm:text-sm sm:leading-5"
         placeholder="Input your name"
-        onChange={(e) => (name.value = e.target.value)}
+        onChange={(e) => (name.first = e.target.value)}
       />
       <div className="shadow-lg bg-white rounded-lg w-64">
-        <div className="text-center my-8">Hi, {name.value}</div>
+        <div className="text-center my-8">Hi, {name.first}</div>
         <div className="text-6xl text-center my-10">{count.value}</div>
         <div className="flex justify-center my-6">
           <span className="inline-flex rounded-md shadow-sm">
@@ -55,4 +65,9 @@ function App({ count, name }) {
   );
 }
 
-export default withData({ count: 0, name: '' })(App);
+export default setup(() => {
+  const count = ref(0);
+  const name = reactive({ first: '' });
+
+  return { count, name };
+})(App);

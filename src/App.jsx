@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { reactive, ref, isRef, effect, stop } from '@vue/reactivity';
 
 const access = (object) => {
@@ -11,22 +11,19 @@ const access = (object) => {
   }
 };
 
-const setup = (setupFn) => (Component) => {
-  const setupProps = setupFn();
+const setup = (setupFn) => (Component) => (props) => {
+  const setupProps = useMemo(setupFn, []);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const reactiveEffect = effect(() => {
+      access(setupProps);
+      setTick((tick) => tick + 1);
+    });
 
-  return (props) => {
-    const [, setTick] = useState(0);
-    useEffect(() => {
-      const reactiveEffect = effect(() => {
-        access(setupProps);
-        setTick((tick) => tick + 1);
-      });
+    return () => stop(reactiveEffect);
+  }, [setupProps]);
 
-      return () => stop(reactiveEffect);
-    }, []);
-
-    return <Component {...props} {...setupProps} />;
-  };
+  return <Component {...props} {...setupProps} />;
 };
 
 function App({ count, name }) {
